@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trái Tim Hạt 3D - Galaxy Heart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background-color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 192, 203, 0.5);
+            font-size: 13px;
+            pointer-events: none;
+            letter-spacing: 1px;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="hint">Kéo chuột / Vuốt để xoay 3D • Cuộn chuột / Chụm ngón tay để phóng to, thu nhỏ</div>
+
+    <!-- Nhúng thư viện Three.js và OrbitControls từ CDN -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://jsdelivr.net"></script>
+
+    <script>
+        // 1. Khởi tạo Scene, Camera và Renderer
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 3, 28);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // 2. Bộ điều khiển xoay 3D & Phóng to/Thu nhỏ
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 8;
+        controls.maxDistance = 70;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8;
+
+        // Hàm tạo họa tiết hạt tròn phát sáng mềm
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 210, 220, 0.8)');
+            gradient.addColorStop(0.7, 'rgba(255, 105, 135, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const particleTexture = createParticleTexture();
+
+        // 3. Tạo Trái Tim Hạt 3D (Khối đầy đặn có chiều sâu)
+        const heartCount = 18000;
+        const heartGeo = new THREE.BufferGeometry();
+        const heartPositions = new Float32Array(heartCount * 3);
+        const heartColors = new Float32Array(heartCount * 3);
+        const basePositions = new Float32Array(heartCount * 3);
+
+        const color1 = new THREE.Color(0xff4d6d); // Hồng đậm
+        const color2 = new THREE.Color(0xffb3c1); // Hồng phấn sáng
+        const color3 = new THREE.Color(0xc9184a); // Đỏ hồng trầm
+
+        let i = 0;
+        while (i < heartCount) {
+            // Công thức toán học tạo khối trái tim 3D
+            const x = (Math.random() * 2 - 1) * 1.5;
+            const y = (Math.random() * 2 - 1) * 1.5;
+            const z = (Math.random() * 2 - 1) * 1.5;
+
+            const a = x * x + (9 / 4) * y * y + z * z - 1;
+            const result = a * a * a - x * x * z * z * z - (9 / 80) * y * y * z * z * z;
+
+            if (result <= 0) {
+                // Tập trung hạt nhiều hơn ở lớp vỏ ngoài để tạo độ sắc nét như trong ảnh
+                const dist = Math.sqrt(x * x + y * y + z * z);
+                if (Math.random() < Math.pow(dist, 1.5) + 0.15) {
+                    const scale = 6.2;
+                    // Hoán đổi trục Y và Z để trái tim dựng đứng
+                    const px = x * scale;
+                    const py = z * scale + 3.5; // Nâng trái tim lên trên vòng xoáy
+                    const pz = y * scale;
+
+                    heartPositions[i * 3] = px;
+                    heartPositions[i * 3 + 1] = py;
+                    heartPositions[i * 3 + 2] = pz;
+
+                    basePositions[i * 3] = px;
+                    basePositions[i * 3 + 1] = py;
+                    basePositions[i * 3 + 2] = pz;
+
+                    // Pha trộn màu hồng phấn/đỏ nhẹ giống hệt hình mẫu
+                    const mixRatio = Math.random();
+                    const chosenColor = mixRatio < 0.5 ? color1 : (mixRatio < 0.85 ? color2 : color3);
+                    heartColors[i * 3] = chosenColor.r;
+                    heartColors[i * 3 + 1] = chosenColor.g;
+                    heartColors[i * 3 + 2] = chosenColor.b;
+
+                    i++;
+                }
+            }
+        }
+
+        heartGeo.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
+        heartGeo.setAttribute('color', new THREE.BufferAttribute(heartColors, 3));
+
+        const heartMat = new THREE.PointsMaterial({
+            size: 0.22,
+            map: particleTexture,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const heartMesh = new THREE.Points(heartGeo, heartMat);
+        scene.add(heartMesh);
+
+        // 4. Tạo Vòng Xoáy Thiên Hà dưới chân trái tim
+        const spiralCount = 9000;
+        const spiralGeo = new THREE.BufferGeometry();
+        const spiralPositions = new Float32Array(spiralCount * 3);
+        const spiralColors = new Float32Array(spiralCount * 3);
+
+        for (let j = 0; j < spiralCount; j++) {
+            const radius = Math.pow(Math.random(), 1.3) * 14;
+            const branches = 5;
+            const branchAngle = ((j % branches) / branches) * Math.PI * 2;
+            const spinAngle = radius * 0.65;
+
+            const randomX = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * 0.8;
+            const randomY = (Math.random() - 0.5) * 0.25;
+            const randomZ = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * 0.8;
+
+            const x = Math.cos(branchAngle + spinAngle) * radius + randomX;
+            const y = -5.8 + randomY - (radius * 0.04); // Đặt ngay dưới đáy trái tim
+            const z = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+            spiralPositions[j * 3] = x;
+            spiralPositions[j * 3 + 1] = y;
+            spiralPositions[j * 3 + 2] = z;
+
+            // Màu vòng xoáy chuyển từ trắng hồng ở tâm ra hồng tím nhạt ở rìa
+            const innerColor = new THREE.Color(0xffe5ec);
+            const outerColor = new THREE.Color(0xa4133c);
+            const mixedColor = innerColor.clone().lerp(outerColor, radius / 14);
+
+            spiralColors[j * 3] = mixedColor.r;
+            spiralColors[j * 3 + 1] = mixedColor.g;
+            spiralColors[j * 3 + 2] = mixedColor.b;
+        }
+
+        spiralGeo.setAttribute('position', new THREE.BufferAttribute(spiralPositions, 3));
+        spiralGeo.setAttribute('color', new THREE.BufferAttribute(spiralColors, 3));
+
+        const spiralMat = new THREE.PointsMaterial({
+            size: 0.18,
+            map: particleTexture,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.75,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const spiralMesh = new THREE.Points(spiralGeo, spiralMat);
+        scene.add(spiralMesh);
+
+        // 5. Tạo Bầu Trời Sao lấp lánh xung quanh
+        const starCount = 2500;
+        const starGeo = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+
+        for (let k = 0; k < starCount; k++) {
+            starPositions[k * 3] = (Math.random() - 0.5) * 140;
+            starPositions[k * 3 + 1] = (Math.random() - 0.5) * 140;
+            starPositions[k * 3 + 2] = (Math.random() - 0.5) * 140;
+        }
+
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMat = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.25,
+            map: particleTexture,
+            transparent: true,
+            opacity: 0.6,
+            depthWrite: false
+        });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // 6. Vòng lặp Animation (Nhịp đập tim & Xoay vòng thiên hà)
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+
+            // Hiệu ứng nhịp đập trái tim nhẹ nhàng
+            const beat = 1 + Math.pow(Math.sin(elapsedTime * 3.2), 4) * 0.06;
+            const posAttr = heartGeo.attributes.position;
+            
+            for (let idx = 0; idx < heartCount; idx++) {
+                const bx = basePositions[idx * 3];
+                const by = basePositions[idx * 3 + 1] - 3.5;
+                const bz = basePositions[idx * 3 + 2];
+
+                posAttr.array[idx * 3] = bx * beat;
+                posAttr.array[idx * 3 + 1] = by * beat + 3.5;
+                posAttr.array[idx * 3 + 2] = bz * beat;
+            }
+            posAttr.needsUpdate = true;
+
+            // Xoay vòng thiên hà bên dưới
